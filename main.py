@@ -1,6 +1,6 @@
 #Handle both webex and web requests
 import vertexai
-from vertexai.language_models import TextGenerationModel
+from vertexai.language_models import TextEmbeddingModel, TextGenerationModel
 from google.cloud import bigquery
 from google.api_core.exceptions import GoogleAPIError
 from flask import Flask, request, jsonify
@@ -35,6 +35,8 @@ BOT_ACCESS_TOKEN = os.environ["BOT_ACCESS_TOKEN"]
 
 LLM_MODEL = TextGenerationModel.from_pretrained("text-bison@001")
 
+PROJECT_ID="ford-4360b648e7193d62719765c7"
+
 bot_email = "bmc-genapp@webex.bot"
 
 PARAMETERS = {
@@ -44,6 +46,8 @@ PARAMETERS = {
   "top_k": 40
 }
 
+
+# vertexai.init(project="ford-4360b648e7193d62719765c7", location="us-central1")
 
 llm = VertexAI(
     model_name='text-bison@001',
@@ -55,6 +59,7 @@ llm = VertexAI(
 
 REQUESTS_PER_MINUTE = 150
 embeddings = VertexAIEmbeddings(requests_per_minute=REQUESTS_PER_MINUTE)
+# embeddings = TextEmbeddingModel.from_pretrained("textembedding-gecko@001")
 
 CARD_PAYLOAD = {
     "type": "AdaptiveCard",
@@ -143,7 +148,11 @@ def get_message(message_id):
 
 def process_message(question):
   chat_history=[]
-  
+
+  handle_proxies("UNSET")
+  vertexai.init(project = PROJECT_ID, location = "us-central1")
+
+  handle_proxies("SET")
   db3 = Chroma(persist_directory="./chroma_db", embedding_function=embeddings)
   
   retriever = db3.as_retriever(search_type="similarity", search_kwargs={"k":2})
@@ -156,7 +165,35 @@ def process_message(question):
   chat_history = [(question, result["result"])]
 
   result=result["result"]
+
+#   prompt=f"""Answer the query as truthfully as possible only using the provided context. If the answer is not contained within the text below, return answer as 'NA'. 
+# The answer should be in  a well-structured and readable block of text. 
+# Pay attention to formatting, such as using bullet points, numbered lists, or headers, to improve the overall readability of the text.
+#   Context:-\n {result}
   
+# examples:
+# input: What is Tensorflow?
+# output: 
+
+# input: What is the Apigee API Publisher and how does it work?
+# output: The Apigee API Publisher is a tool that allows API teams to deploy APIs to Apigee . It performs the following steps: 
+#           1. Runs the provided Swagger/OpenAPI v3 API specification through the Ford API Linter and 42Crunch Audit scan 
+#           2. Deploys an API proxy to the specified API gateway 
+#           3. Uploads the provided Swagger/OpenAPI v3 API specification to the API Catalog .
+# input: {question}
+# output: 
+#   """
+
+#   print(f"This is the prompt{prompt}")
+
+#   llm_response = LLM_MODEL.predict(   ## 5. generate response from LLM
+#       prompt,
+#       **PARAMETERS
+#     )
+
+
+#   print(llm_response)
+
   return result
 
 def send_message(room_id, message_id, response_json):
